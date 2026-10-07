@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
 DEFAULT_MODEL = "gemini-3.8-flash"
+# Tried in order if the main model is overloaded (503)
+FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-3.7-flash"]
 MAX_RESUME_CHARS = 20000
 MIN_RESUME_CHARS = 100
 
@@ -114,18 +116,25 @@ def analyze_resume(api_key: str, model: str, resume_text: str, jd: Optional[str]
     )
 
     response = None
-    waits = [3, 8]  # seconds to wait before retry 2 and 3
-    for attempt in range(len(waits) + 1):
-        try:
-            response = client.models.generate_content(model=model, contents=prompt, config=config)
+    last_error = None
+    models_to_try = [model] + [m for m in FALLBACK_MODELS if m != model]
+    for m in models_to_try:
+        for attempt in range(2):  # 2 tries per model
+            try:
+                response = client.models.generate_content(model=m, contents=prompt, config=config)
+                break
+            except Exception as e:
+                msg = str(e)
+                if "503" in msg or "UNAVAILABLE" in msg:
+                    last_error = e
+                    if attempt == 0:
+                        time.sleep(3)
+                    continue
+                raise  # other errors (429, 404, timeout...) are shown to the user
+        if response is not None:
             break
-        except Exception as e:
-            msg = str(e)
-            overloaded = "503" in msg or "UNAVAILABLE" in msg
-            if overloaded and attempt < len(waits):
-                time.sleep(waits[attempt])
-                continue
-            raise
+    if response is None:
+        raise last_error
 
     if getattr(response, "parsed", None) is not None:
         return response.parsed
