@@ -12,7 +12,7 @@ from google.genai import types
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
 MAX_RESUME_CHARS = 20000
 MIN_RESUME_CHARS = 100
 
@@ -148,7 +148,7 @@ with st.sidebar:
         api_key = st.text_input("Gemini API key", type="password",
                                 help="Get a free key at https://aistudio.google.com/apikey")
     model_name = st.text_input("Model", value=DEFAULT_MODEL,
-                               help="Any Gemini Flash model name, e.g. gemini-2.5-flash")
+                               help="Any Gemini Flash model name, e.g. gemini-3.8-flash")
     st.markdown("---")
     st.caption("Your resume is sent to Google's Gemini API for analysis and is not stored by this app.")
 
