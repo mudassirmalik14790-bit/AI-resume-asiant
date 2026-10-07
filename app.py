@@ -3,6 +3,7 @@
 import io
 import json
 import os
+import time
 from typing import List, Optional
 
 import streamlit as st
@@ -105,15 +106,27 @@ def analyze_resume(api_key: str, model: str, resume_text: str, jd: Optional[str]
         api_key=api_key,
         http_options=types.HttpOptions(timeout=60000),  # 60 seconds
     )
-    response = client.models.generate_content(
-        model=model,
-        contents=build_prompt(resume_text, jd),
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            response_mime_type="application/json",
-            response_schema=ATSReport,
-        ),
+    prompt = build_prompt(resume_text, jd)
+    config = types.GenerateContentConfig(
+        temperature=0.2,
+        response_mime_type="application/json",
+        response_schema=ATSReport,
     )
+
+    response = None
+    waits = [3, 8]  # seconds to wait before retry 2 and 3
+    for attempt in range(len(waits) + 1):
+        try:
+            response = client.models.generate_content(model=model, contents=prompt, config=config)
+            break
+        except Exception as e:
+            msg = str(e)
+            overloaded = "503" in msg or "UNAVAILABLE" in msg
+            if overloaded and attempt < len(waits):
+                time.sleep(waits[attempt])
+                continue
+            raise
+
     if getattr(response, "parsed", None) is not None:
         return response.parsed
     if not response.text:
@@ -188,6 +201,8 @@ if st.button("Analyze resume", type="primary", disabled=uploaded is None):
         msg = str(e)
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
             st.warning("Too many requests (free tier limit). Please wait about a minute and try again.")
+        elif "503" in msg or "UNAVAILABLE" in msg:
+            st.warning("Google's model is busy right now. Please try again in a minute or two.")
         elif "404" in msg or "NOT_FOUND" in msg:
             st.error("Model not found. Change the model name in the sidebar to a current Gemini Flash model.")
         elif "timed out" in msg.lower() or "timeout" in msg.lower() or "deadline" in msg.lower():
