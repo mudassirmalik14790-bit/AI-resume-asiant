@@ -104,7 +104,7 @@ RESUME:
 def analyze_resume(api_key: str, model: str, resume_text: str, jd: Optional[str]) -> ATSReport:
     client = genai.Client(
         api_key=api_key,
-        http_options=types.HttpOptions(timeout=60000),  # 60 seconds
+        http_options=types.HttpOptions(timeout=120000),  # 120 seconds
     )
     prompt = build_prompt(resume_text, jd)
     config = types.GenerateContentConfig(
