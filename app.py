@@ -101,7 +101,10 @@ RESUME:
 
 
 def analyze_resume(api_key: str, model: str, resume_text: str, jd: Optional[str]) -> ATSReport:
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=60000),  # 60 seconds
+    )
     response = client.models.generate_content(
         model=model,
         contents=build_prompt(resume_text, jd),
@@ -182,7 +185,15 @@ if st.button("Analyze resume", type="primary", disabled=uploaded is None):
         with st.spinner("Analyzing with Gemini..."):
             report = analyze_resume(api_key, model_name.strip() or DEFAULT_MODEL, text, job_description)
     except Exception as e:
-        st.error(f"Analysis failed: {e}")
+        msg = str(e)
+        if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
+            st.warning("Too many requests (free tier limit). Please wait about a minute and try again.")
+        elif "404" in msg or "NOT_FOUND" in msg:
+            st.error("Model not found. Change the model name in the sidebar to a current Gemini Flash model.")
+        elif "timed out" in msg.lower() or "timeout" in msg.lower() or "deadline" in msg.lower():
+            st.error("The request timed out. Please try again.")
+        else:
+            st.error(f"Analysis failed: {e}")
         st.stop()
 
     st.divider()
